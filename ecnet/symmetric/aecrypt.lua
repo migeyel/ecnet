@@ -7,8 +7,8 @@ local random = require("ecnet.symmetric.random")
 local byteTableMT = require("ecnet.util").byteTableMT
 
 local function encrypt(data, key)
-    local encKey = sha256.hmac("encKey\8\1" .. keyString, key)
-    local macKey = sha256.hmac("macKey\8\1" .. keyString, key)
+    local encKey = sha256.hmac("encKey\8\1", key)
+    local macKey = sha256.hmac("macKey\8\1", key)
     
     local nonce = {unpack(random.random(), 1, 12)}
     local ciphertext = chacha20.crypt(data, encKey, nonce, 1, 8)
@@ -28,8 +28,8 @@ end
 local function decrypt(data, key)
     local data = type(data) == "table" and {unpack(data)} or {tostring(data):byte(1,-1)}
 
-    local encKey = sha256.hmac("encKey\8\1" .. keyString, key)
-    local macKey = sha256.hmac("macKey\8\1" .. keyString, key)
+    local encKey = sha256.hmac("encKey\8\1", key)
+    local macKey = sha256.hmac("macKey\8\1", key)
     
     local mac = siphash.mac({unpack(data, 1, #data - 8)}, {unpack(macKey, 1, 16)})
     local messageMac = {unpack(data, #data - 7)}
