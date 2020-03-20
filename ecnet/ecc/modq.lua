@@ -1,6 +1,7 @@
 -- Arithmetic on the Finite Field of Integers modulo q
 -- Where q is the generator's subgroup order.
 
+local byteTableMT = require("ecnet.util").byteTableMT
 local arith = require("ecnet.ecc.arith")
 local sha256 = require("ecnet.symmetric.sha256")
 

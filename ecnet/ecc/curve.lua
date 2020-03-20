@@ -24,6 +24,7 @@
 -- Completeness? Yes: The curve is complete.
 -- Indistinguishability? Yes (Elligator 2), but not implemented.
 
+local byteTableMT = require("ecnet.util").byteTableMT
 local arith = require("ecnet.ecc.arith")
 local modp = require("ecnet.ecc.modp")
 local modq = require("ecnet.ecc.modq")
