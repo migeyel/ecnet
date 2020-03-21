@@ -4,7 +4,9 @@ local chacha20 = require("ecnet.symmetric.chacha20")
 local sha256 = require("ecnet.symmetric.sha256")
 local siphash = require("ecnet.symmetric.siphash")
 local random = require("ecnet.symmetric.random")
-local byteTableMT = require("ecnet.util").byteTableMT
+local util = require("ecnet.util")
+
+local mt = util.byteTableMT
 
 local function getNonceFromEpoch()
     local nonce = {}
@@ -34,7 +36,7 @@ local function encrypt(data, encKey, macKey)
         result[#result + 1] = mac[i]
     end
 
-    return setmetatable(result, byteTableMT)
+    return setmetatable(result, mt)
 end
 
 local function decrypt(data, encKey, macKey)
@@ -49,7 +51,7 @@ local function decrypt(data, encKey, macKey)
     local nonce = {unpack(data, 1, 12)}
     local result = chacha20.crypt(ciphertext, encKey, nonce, 1, 8)
 
-    return setmetatable(result, byteTableMT)
+    return setmetatable(result, mt)
 end
 
 return {

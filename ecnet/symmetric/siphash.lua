@@ -1,10 +1,11 @@
 -- SipHash-2-4 - A very fast message authentication code
 
-local byteTableMT = require("ecnet.util").byteTableMT
+local util = require("ecnet.util")
 
 local bxor = bit32.bxor
 local band = bit32.band
 local rshift = bit32.rshift
+local mt = util.byteTableMT
 
 local function pad(m)
     local len = #m
@@ -113,7 +114,7 @@ local function mac(message, key)
         r0 % 256
     }
 
-    return setmetatable(result, byteTableMT)
+    return setmetatable(result, mt)
 end
 
 return {

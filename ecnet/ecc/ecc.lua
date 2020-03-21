@@ -1,12 +1,14 @@
 -- Elliptic Curve Cryptography in Computercraft
 
-local byteTableMT = require("ecnet.util").byteTableMT
+local util = require("ecnet.util")
 local curve = require("ecnet.ecc.curve")
 local modq = require("ecnet.ecc.modq")
 local sha256 = require("ecnet.symmetric.sha256")
 local chacha20 = require("ecnet.symmetric.chacha20")
 local siphash = require("ecnet.symmetric.siphash")
 local random = require("ecnet.symmetric.random")
+
+local mt = util.byteTableMT
 
 local function keypair(seed)
     seed = seed or random.random()
@@ -47,7 +49,7 @@ local function sign(privateKey, message)
         result[#result + 1] = s[i]
     end
 
-    return setmetatable(result, byteTableMT)
+    return setmetatable(result, mt)
 end
 
 local function verify(publicKey, message, signature)

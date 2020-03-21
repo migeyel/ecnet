@@ -24,7 +24,7 @@
 -- Completeness? Yes: The curve is complete.
 -- Indistinguishability? Yes (Elligator 2), but not implemented.
 
-local byteTableMT = require("ecnet.util").byteTableMT
+local util = require("ecnet.util")
 local arith = require("ecnet.ecc.arith")
 local modp = require("ecnet.ecc.modp")
 local modq = require("ecnet.ecc.modq")
@@ -40,6 +40,7 @@ local subModP = modp.subModP
 local montgomeryModP = modp.montgomeryModP
 local expModP = modp.expModP
 local inverseMontgomeryModQ = modq.inverseMontgomeryModQ
+local mt = util.byteTableMT
 
 local pointMT
 local ZERO = {0, 0, 0, 0, 0, 0, 0}
@@ -224,7 +225,7 @@ local function pointEncode(P1)
     -- Encode one bit from x
     result[22] = x[1] % 2
 
-    return setmetatable(result, byteTableMT)
+    return setmetatable(result, mt)
 end
 
 local function pointDecode(enc)

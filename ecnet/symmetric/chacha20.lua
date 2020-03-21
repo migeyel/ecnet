@@ -1,39 +1,36 @@
--- Chacha20 cipher in ComputerCraft 
--- By Anavrins  
--- For help and details, you can PM me on the CC forums 
--- http://www.computercraft.info/forums2/index.php?/user/12870-anavrins 
--- You may use this code in your projects without asking me, as long as credit is given 
-    
--- http://pastebin.com/GPzf9JSa 
--- Last update: June 30, 2019
+-- Chacha20 cipher in ComputerCraft
+-- By Anavrins
+-- Licensed under the MIT license
 
-local byteTableMT = require("ecnet.util").byteTableMT
+local util = require("ecnet.util")
 
 local bxor = bit32.bxor
 local band = bit32.band
 local blshift = bit32.lshift
 local brshift = bit32.arshift
+local textutils = _G.textutils
+local mt = util.byteTableMT
 
-local mod32 = 2^32
+local mod = 2^32
 local tau = {("expand 16-byte k"):byte(1,-1)}
 local sigma = {("expand 32-byte k"):byte(1,-1)}
 
 local function rotl(n, b)
     local s = n/(2^(32-b))
     local f = s%1
-    return (s-f) + f*mod32
+    return (s-f) + f*mod
 end
 
 local function quarterRound(s, a, b, c, d)
-    s[a] = (s[a]+s[b])%mod32; s[d] = rotl(bxor(s[d], s[a]), 16)
-    s[c] = (s[c]+s[d])%mod32; s[b] = rotl(bxor(s[b], s[c]), 12)
-    s[a] = (s[a]+s[b])%mod32; s[d] = rotl(bxor(s[d], s[a]), 8)
-    s[c] = (s[c]+s[d])%mod32; s[b] = rotl(bxor(s[b], s[c]), 7)
+    s[a] = (s[a]+s[b])%mod; s[d] = rotl(bxor(s[d], s[a]), 16)
+    s[c] = (s[c]+s[d])%mod; s[b] = rotl(bxor(s[b], s[c]), 12)
+    s[a] = (s[a]+s[b])%mod; s[d] = rotl(bxor(s[d], s[a]), 8)
+    s[c] = (s[c]+s[d])%mod; s[b] = rotl(bxor(s[b], s[c]), 7)
     return s
 end
 
 local function hashBlock(state, rnd)
-    local s = {unpack(state)}
+    local s = {table.unpack(state)}
     for i = 1, rnd do
         local r = i%2==1
         s = r and quarterRound(s, 1, 5,  9, 13) or quarterRound(s, 1, 6, 11, 16)
@@ -41,7 +38,7 @@ local function hashBlock(state, rnd)
         s = r and quarterRound(s, 3, 7, 11, 15) or quarterRound(s, 3, 8,  9, 14)
         s = r and quarterRound(s, 4, 8, 12, 16) or quarterRound(s, 4, 5, 10, 15)
     end
-    for i = 1, 16 do s[i] = (s[i]+state[i])%mod32 end
+    for i = 1, 16 do s[i] = (s[i]+state[i])%mod end
     return s
 end
 
@@ -96,7 +93,7 @@ local function crypt(data, key, nonce, cntr, round)
     assert(#key == 16 or #key == 32, "ChaCha20: Invalid key length ("..#key.."), must be 16 or 32")
     assert(#nonce == 12, "ChaCha20: Invalid nonce length ("..#nonce.."), must be 12")
 
-    local data = type(data) == "table" and {unpack(data)} or {tostring(data):byte(1,-1)}
+    data = type(data) == "table" and {table.unpack(data)} or {tostring(data):byte(1,-1)}
     cntr = tonumber(cntr) or 1
     round = tonumber(round) or 20
 
@@ -105,7 +102,7 @@ local function crypt(data, key, nonce, cntr, round)
     local blockAmt = math.floor(#data/64)
     for i = 0, blockAmt do
         local ks = serialize(hashBlock(state, round))
-        state[13] = (state[13]+1) % mod32
+        state[13] = (state[13]+1) % mod
 
         local block = {}
         for j = 1, 64 do
@@ -120,7 +117,7 @@ local function crypt(data, key, nonce, cntr, round)
             os.pullEvent("")
         end
     end
-    return setmetatable(out, byteTableMT)
+    return setmetatable(out, mt)
 end
 
 return {

@@ -1,7 +1,7 @@
 -- Arithmetic on the Finite Field of Integers modulo q
 -- Where q is the generator's subgroup order.
 
-local byteTableMT = require("ecnet.util").byteTableMT
+local util = require("ecnet.util")
 local arith = require("ecnet.ecc.arith")
 local sha256 = require("ecnet.symmetric.sha256")
 
@@ -14,6 +14,7 @@ local mult = arith.mult
 local square = arith.square
 local encodeInt = arith.encodeInt
 local decodeInt = arith.decodeInt
+local mt = util.byteTableMT
 
 local modQMT
 
@@ -126,7 +127,7 @@ end
 local function encodeModQ(a)
     local result = encodeInt(a)
 
-    return setmetatable(result, byteTableMT)
+    return setmetatable(result, mt)
 end
 
 local function decodeModQ(s)
