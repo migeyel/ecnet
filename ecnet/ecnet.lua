@@ -169,8 +169,10 @@ local function processConnectionRequest(modem, request)
         otherEphemeralPublicKey
     )
     local masterKey = sha256.hmac(ephemeralSharedSecret, sharedSecret)
-    local senderSymmetricKey = sha256.hmac("senderSymmetricKeyKey", masterKey)
-    local receiverSymmetricKey = sha256.hmac("receiverSymmetricKey", masterKey)
+    local senderEncryptionKey = sha256.hmac("senderEncryptionKey", masterKey)
+    local senderMacKey = {unpack(sha256.hmac("senderMacKey", masterKey), 1,16)}
+    local receiverEncryptionKey = sha256.hmac("receiverEncryptionKey", masterKey)
+    local receiverMacKey = {unpack(sha256.hmac("receiverMacKey", masterKey), 1, 16)}
     local otherTagKey = sha256.hmac("senderTagKey", sharedSecret)
     local ownTagKey = sha256.hmac("receiverTagKey", masterKey)
 
@@ -205,8 +207,10 @@ local function processConnectionRequest(modem, request)
     sessions[otherAddress] = {
         publicKey = otherPublicKey,
         sharedSecret = sharedSecret,
-        ownSymmetricKey = receiverSymmetricKey,
-        otherSymmetricKey = senderSymmetricKey,
+        ownEncryptionKey = receiverEncryptionKey,
+        ownMacKey = receiverMacKey,
+        otherEncryptionKey = senderEncryptionKey,
+        otherMacKey = senderMacKey,
         counter = counter
     }
 end
@@ -238,8 +242,10 @@ local function processConnectionResponse(requestSecrets, response)
         otherEphemeralPublicKey
     )
     local masterKey = sha256.hmac(ephemeralSharedSecret, sharedSecret)
-    local senderSymmetricKey = sha256.hmac("senderSymmetricKeyKey", masterKey)
-    local receiverSymmetricKey = sha256.hmac("receiverSymmetricKey", masterKey)
+    local senderEncryptionKey = sha256.hmac("senderEncryptionKey", masterKey)
+    local senderMacKey = {unpack(sha256.hmac("senderMacKey", masterKey), 1,16)}
+    local receiverEncryptionKey = sha256.hmac("receiverEncryptionKey", masterKey)
+    local receiverMacKey = {unpack(sha256.hmac("receiverMacKey", masterKey), 1, 16)}
     local otherTagKey = sha256.hmac("receiverTagKey", masterKey)
 
     -- Assert private validity
@@ -252,12 +258,14 @@ local function processConnectionResponse(requestSecrets, response)
         ):sub(1, 10) == otherTag
     )
 
-    -- Make session
+    -- Make new session
     sessions[otherAddress] = {
         publicKey = otherPublicKey,
         sharedSecret = sharedSecret,
-        ownSymmetricKey = senderSymmetricKey,
-        otherSymmetricKey = receiverSymmetricKey,
+        ownEncryptionKey = senderEncryptionKey,
+        ownMacKey = senderMacKey,
+        otherEncryptionKey = receiverEncryptionKey,
+        otherMacKey = receiverMacKey,
         counter = counter
     }
 end
@@ -278,10 +286,11 @@ local function internalProcessMessage(message)
     assert(unauthCounter > sessionCounter)
 
     -- Private data
-    local otherSymmetricKey = sessions[otherAddress].otherSymmetricKey
+    local otherEncryptionKey = sessions[otherAddress].otherEncryptionKey
+    local otherMacKey = sessions[otherAddress].otherMacKey
 
     -- Decrypt data
-    local outerLayer = aecrypt.decrypt(ciphertext, otherSymmetricKey)
+    local outerLayer = aecrypt.decrypt(ciphertext, otherEncryptionKey, otherMacKey)
     outerLayer = tostring(outerLayer)
     local messageCounter = 0
     for i = 1, 6 do
@@ -419,7 +428,8 @@ local function send(modem, otherAddress, data)
     end
 
     -- Private data
-    local ownSymmetricKey = sessions[otherAddress].ownSymmetricKey
+    local ownEncryptionKey = sessions[otherAddress].ownEncryptionKey
+    local ownMacKey = sessions[otherAddress].ownMacKey
 
     -- Encrypt data
     local messageCounter = os.epoch("utc")
@@ -432,7 +442,7 @@ local function send(modem, otherAddress, data)
     outerLayer = outerLayer .. string.char(#data % 256)
     outerLayer = outerLayer .. data
     outerLayer = outerLayer .. ("\0"):rep((-#data - 1) % 256)
-    local ciphertext = aecrypt.encrypt(outerLayer, ownSymmetricKey)
+    local ciphertext = aecrypt.encrypt(outerLayer, ownEncryptionKey, ownMacKey)
 
     -- Send message
     local message = {

@@ -1,4 +1,4 @@
--- aecrypt.lua - Authenticated encryption (currently incompatible with pastebin ecc)
+-- aecrypt.lua - Authenticated encryption
 
 local chacha20 = require("ecnet.symmetric.chacha20")
 local sha256 = require("ecnet.symmetric.sha256")
@@ -6,13 +6,25 @@ local siphash = require("ecnet.symmetric.siphash")
 local random = require("ecnet.symmetric.random")
 local byteTableMT = require("ecnet.util").byteTableMT
 
-local function encrypt(data, key)
-    local encKey = sha256.hmac("encKey\8\1", key)
-    local macKey = sha256.hmac("macKey\8\1", key)
-    
-    local nonce = {unpack(random.random(), 1, 12)}
+local function getNonceFromEpoch()
+    local nonce = {}
+    local epoch = os.epoch("utc")
+    for i = 1, 7 do
+        nonce[#nonce + 1] = epoch % 256
+        epoch = epoch / 256
+        epoch = epoch - epoch % 1
+    end
+    for i = 8, 12 do
+        nonce[i] = math.random(0, 255)
+    end
+
+    return nonce
+end
+
+local function encrypt(data, encKey, macKey)
+    local nonce = getNonceFromEpoch()
     local ciphertext = chacha20.crypt(data, encKey, nonce, 1, 8)
-    
+
     local result = nonce
     for i = 1, #ciphertext do
         result[#result + 1] = ciphertext[i]
@@ -25,16 +37,13 @@ local function encrypt(data, key)
     return setmetatable(result, byteTableMT)
 end
 
-local function decrypt(data, key)
+local function decrypt(data, encKey, macKey)
     local data = type(data) == "table" and {unpack(data)} or {tostring(data):byte(1,-1)}
-
-    local encKey = sha256.hmac("encKey\8\1", key)
-    local macKey = sha256.hmac("macKey\8\1", key)
     
     local mac = siphash.mac({unpack(data, 1, #data - 8)}, {unpack(macKey, 1, 16)})
     local messageMac = {unpack(data, #data - 7)}
     local ciphertext = {unpack(data, 13, #data - 8)}
-    
+
     assert(mac:isEqual(messageMac), "invalid mac")
     
     local nonce = {unpack(data, 1, 12)}
