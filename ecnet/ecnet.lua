@@ -307,21 +307,43 @@ local function internalProcessMessage(message)
     -- Increment session counter
     sessions[otherAddress].counter = messageCounter
 
-    return data
+    return otherAddress, data
 end
 
--- Guarantees atomic processing of messages
+-- Adds new messages to a queue and/or processes messages from the end of it
+-- Meant to be run as a coroutine
+-- Add messages to the queue as the first resume argument
+-- Process existing messages in the queue by resuming with or without a new message
 local function processMessage(message)
-    local coro = coroutine.create(internalProcessMessage)
-    local returned = {coroutine.resume(coro, message)}
+    local internalCoro
+    local messageQueue = {message}
+    local isProcessing = false
+    local success, arg2, data
 
-    while coroutine.status(coro) ~= "dead" do
-        returned = {coroutine.resume(coro)}
+    while true do
+        if not isProcessing then
+            if #messageQueue > 0 then
+                arg2 = table.remove(messageQueue, 1)
+                internalCoro = coroutine.create(internalProcessMessage)
+                isProcessing = true
+            end
+        end
+        if isProcessing then
+            -- argument arg2 is either the message (first-time run) or a filter
+            -- returned arg2 is either the sender (last-time run) or a filter
+            success, arg2, data = coroutine.resume(internalCoro, arg2)
+            if coroutine.status(internalCoro) == "dead" then
+                if success then
+                    os.queueEvent("ecnet_message", arg2, data) -- arg2 = sender
+                end
+                isProcessing = false
+            end
+        end
+        messageQueue[#messageQueue + 1] = coroutine.yield()
     end
-    assert(returned[1], returned[2])
-
-    return unpack(returned, 2)
 end
+
+local wrappedProcessMessage = coroutine.wrap(processMessage)
 
 -- Listens to received messages, processes them and queues events
 -- Can handle address requests, connection requests and messages
@@ -330,8 +352,11 @@ end
 local function listen(modem)
     while true do
         while true do
-            local _, _, channel, _, received = os.pullEvent("modem_message")
+            local event, _, channel, _, received = os.pullEvent()
 
+            if event ~= "modem_message" then
+                wrappedProcessMessage()
+            end
             if channel ~= CHANNEL then break end
             if type(received) ~= "table" then break end
             if received.to ~= ownAddress then break end
@@ -349,11 +374,7 @@ local function listen(modem)
                     os.queueEvent("ecnet_connection", received.from)
                 end
             elseif received.type == "message" then
-                local success, message = pcall(processMessage, received)
-
-                if success then
-                    os.queueEvent("ecnet_message", received.from, message)
-                end
+                wrappedProcessMessage(received)
             end
         end
     end
