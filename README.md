@@ -65,4 +65,4 @@ Performing connections is considerably slower than sending messages. First-time 
 SquidDev's [Howl](https://github.com/SquidDev-CC/Howl) is used to build the API. You can build it using `Howl build`.
 
 ## Installing
-You can either clone and build it by yourself or download the minified version from this gist: [ecnet.min.lua](https://gist.github.com/migeyel/278f77628248ea991719f0376979b525) ([Raw](https://gist.githubusercontent.com/migeyel/278f77628248ea991719f0376979b525/raw/d2c53daa12799413f4343ab98f57cd8b3639fecc/ecnet.min.lua))
+You can either clone and build it by yourself or download the minified version from this gist: [ecnet.min.lua](https://gist.github.com/migeyel/278f77628248ea991719f0376979b525) ([Raw](https://gist.githubusercontent.com/migeyel/278f77628248ea991719f0376979b525/raw/ecnet.min.lua))
