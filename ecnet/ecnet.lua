@@ -1,6 +1,7 @@
 -- Ecnet - Simple secure network messages for Computercraft
 
 local util = require("ecnet.util")
+local cbor = require("ecnet.cbor")
 local sha256 = require("ecnet.symmetric.sha256")
 local chacha20 = require("ecnet.symmetric.chacha20")
 local siphash = require("ecnet.symmetric.siphash")
@@ -300,6 +301,7 @@ local function internalProcessMessage(message)
     local dataLengthMod256 = outerLayer:byte(7)
     local dataLength = #outerLayer - 7 - ((-dataLengthMod256 - 1) % 256)
     local data = outerLayer:sub(8, dataLength + 7)
+    data = cbor.decode(data)
 
     -- Assert private validity
     assert(messageCounter > sessionCounter)
@@ -453,6 +455,7 @@ local function send(modem, otherAddress, data)
     local ownMacKey = sessions[otherAddress].ownMacKey
 
     -- Encrypt data
+    data = cbor.encode(data)
     local messageCounter = os.epoch("utc")
     local counterCopy = messageCounter
     local outerLayer = ""
