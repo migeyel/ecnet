@@ -8,8 +8,6 @@ end
 local util = require("ecnet.util")
 local cbor = require("ecnet.cbor")
 local sha256 = require("ecnet.symmetric.sha256")
-local chacha20 = require("ecnet.symmetric.chacha20")
-local siphash = require("ecnet.symmetric.siphash")
 local aecrypt = require("ecnet.symmetric.aecrypt")
 local random = require("ecnet.symmetric.random")
 local ecc = require("ecnet.ecc.ecc")
