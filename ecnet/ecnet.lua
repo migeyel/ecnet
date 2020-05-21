@@ -1,5 +1,10 @@
 -- Ecnet - Simple secure network messages for Computercraft
 
+-- Prevent two instances from exising in the same environment
+if package.loaded["ecnet"] and arg[1] ~= "ecnet" then
+    return package.loaded["ecnet"]
+end
+
 local util = require("ecnet.util")
 local cbor = require("ecnet.cbor")
 local sha256 = require("ecnet.symmetric.sha256")
@@ -540,7 +545,11 @@ local function wrap(modem)
     }
 end
 
-return {
+local ecnet = {
     wrap = wrap,
     address = ownAddress
 }
+
+package.loaded["ecnet"] = ecnet
+
+return ecnet

@@ -4,7 +4,7 @@ An easy encrypted communications API for ComputerCraft.
 ## Example Usage
 Here's an example of how you would send a "hello" message from one computer to another.
 
-First, you'll need to `require` the API in your program. **Note: Loading the file using basically anything that's not `require` may cause several instances of the API to be run at the same time. This can cause problems with performance, unreliable connections and undefined behavior in general.**
+First, you'll need to `require` the API in your program.
 ```lua
 local ecnet = require("ecnet")
 ```
