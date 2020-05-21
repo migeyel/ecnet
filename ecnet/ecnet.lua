@@ -50,14 +50,14 @@ local ownAddress = makeAddress(ownPublicKey)
 -- Internal network functions
 
 -- Makes and sends an address resolution request
-local function makeAddressRequest(modem, otherAddress)
+local function makeAddressRequest(networkAPI, otherAddress)
     -- Make request
     local request = {
         type = "addressRequest",
         from = ownAddress,
         to = otherAddress,
     }
-    modem.transmit(CHANNEL, CHANNEL, request)
+    networkAPI.send(CHANNEL, request)
 
     -- Make request secrets
     local requestSecrets = {
@@ -68,7 +68,7 @@ local function makeAddressRequest(modem, otherAddress)
 end
 
 -- Makes and sends a connection request
-local function makeConnectionRequest(modem, otherPublicKey)
+local function makeConnectionRequest(networkAPI, otherPublicKey)
     -- Public data
     local otherAddress = makeAddress(otherPublicKey)
 
@@ -97,7 +97,7 @@ local function makeConnectionRequest(modem, otherPublicKey)
         tag = tostring(ownTag):sub(1, 10),
         counter = counter
     }
-    modem.transmit(CHANNEL, CHANNEL, request)
+    networkAPI.send(CHANNEL, request)
 
     -- Make request secrets
     local requestSecrets = {
@@ -110,7 +110,7 @@ local function makeConnectionRequest(modem, otherPublicKey)
 end
 
 -- Sends the response for an address resolution request
-local function processAddressRequest(modem, request)
+local function processAddressRequest(networkAPI, request)
     -- Public data
     local otherAddress = request.from
 
@@ -121,7 +121,7 @@ local function processAddressRequest(modem, request)
         to = otherAddress,
         publicKey = tostring(ownPublicKey)
     }
-    modem.transmit(CHANNEL, CHANNEL, response)
+    networkAPI.send(CHANNEL, response)
 end
 
 -- Verifies validity of an address resolution response
@@ -141,7 +141,7 @@ end
 -- Verifies authenticity of a connection request
 -- Sends back a connection response
 -- Creates a new session from the request
-local function processConnectionRequest(modem, request)
+local function processConnectionRequest(networkAPI, request)
     -- Public data
     local otherPublicKey = request.publicKey
     local otherEphemeralPublicKey = request.ephemeralPublicKey
@@ -207,7 +207,6 @@ local function processConnectionRequest(modem, request)
         tag = tostring(ownTag):sub(1, 10),
         counter = counter
     }
-    modem.transmit(CHANNEL, CHANNEL, response)
 
     -- Make new session
     sessions[otherAddress] = {
@@ -219,6 +218,7 @@ local function processConnectionRequest(modem, request)
         otherMacKey = senderMacKey,
         counter = counter
     }
+    networkAPI.send(CHANNEL, response)
 end
 
 -- Verifies authenticity of a connection response
@@ -356,51 +356,60 @@ local wrappedProcessMessage = coroutine.wrap(processMessage)
 -- Can handle address requests, connection requests and messages
 -- Queues event {"ecnet_message", address_from, message}
 -- Queues event {"ecnet_connection", address_from}
-local function listen(modem)
-    while true do
-        while true do
-            local event, _, channel, _, received = os.pullEvent()
-
-            if event ~= "modem_message" then
+local function listen(networkAPI)
+    parallel.waitForAny(
+        function()
+            while true do
+                os.pullEvent()
                 wrappedProcessMessage()
             end
-            if channel ~= CHANNEL then break end
-            if type(received) ~= "table" then break end
-            if received.to ~= ownAddress then break end
+        end,
+        function()
+            while true do
+                while true do
+                    local channel, received = networkAPI.receive()
 
-            if received.type == "addressRequest" then
-                pcall(processAddressRequest, modem, received)
-            elseif received.type == "connectionRequest" then
-                local success = pcall(
-                    processConnectionRequest,
-                    modem,
-                    received
-                )
+                    if channel ~= CHANNEL then break end
+                    if type(received) ~= "table" then break end
+                    if received.to ~= ownAddress then break end
 
-                if success then
-                    os.queueEvent("ecnet_connection", received.from)
+                    if received.type == "addressRequest" then
+                        pcall(processAddressRequest, networkAPI, received)
+                    elseif received.type == "connectionRequest" then
+                        local success = pcall(
+                            processConnectionRequest,
+                            networkAPI,
+                            received
+                        )
+
+                        if success then
+                            os.queueEvent("ecnet_connection", received.from)
+                        end
+                    elseif received.type == "message" then
+                        wrappedProcessMessage(received)
+                    end
                 end
-            elseif received.type == "message" then
-                wrappedProcessMessage(received)
             end
         end
-    end
+    )
 end
 
 -- Performs the connection handshake to an address
-local function connect(modem, address, timeout)
+local function connect(networkAPI, address, timeout)
     local returned = parallel.waitForAny(
-        function() sleep(timeout) end,
+        function()
+            sleep(timeout)
+        end,
         function()
             -- Get public key
             local otherPublicKey
             if sessions[address] then
                 otherPublicKey = sessions[address].publicKey
             else
-                local requestSecrets = makeAddressRequest(modem, address)
+                local requestSecrets = makeAddressRequest(networkAPI, address)
 
                 while true do
-                    local _, _, channel, _, received = os.pullEvent("modem_message")
+                    local channel, received = networkAPI.receive()
 
                     if (
                         channel == CHANNEL
@@ -421,9 +430,9 @@ local function connect(modem, address, timeout)
             end
 
             -- Connect
-            local requestSecrets = makeConnectionRequest(modem, otherPublicKey)
+            local requestSecrets = makeConnectionRequest(networkAPI, otherPublicKey)
             while true do
-                local _, _, channel, _, received = os.pullEvent("modem_message")
+                local channel,received = networkAPI.receive()
 
                 if (
                     channel == CHANNEL
@@ -441,7 +450,9 @@ local function connect(modem, address, timeout)
                 end
             end
         end,
-        listen
+        function()
+            listen(networkAPI)
+        end
     )
 
     return (returned == 2)
@@ -450,7 +461,7 @@ end
 -- Sends a message with data to an address
 -- Returns false if no session is present
 -- Returns true if the message has been sent
-local function send(modem, otherAddress, data)
+local function send(networkAPI, otherAddress, data)
     if not sessions[otherAddress] then
         return false
     end
@@ -478,10 +489,10 @@ local function send(modem, otherAddress, data)
         type = "message",
         from = ownAddress,
         to = otherAddress,
-        ciphertext = tostring(ciphertext),
+        ciphertext = ciphertext,
         counter = messageCounter
     }
-    modem.transmit(CHANNEL, CHANNEL, message)
+    networkAPI.send(CHANNEL, message)
 
     return true
 end
@@ -489,7 +500,7 @@ end
 -- Receives messages
 -- Returns the sender and the message contents
 -- Uses listen() internally
-local function receive(modem, addressFilter, timeout)
+local function receive(networkAPI, addressFilter, timeout)
     local from, message
     local returned = parallel.waitForAny(
         function()
@@ -511,7 +522,9 @@ local function receive(modem, addressFilter, timeout)
                 end
             end
         end,
-        function() listen(modem) end
+        function()
+            listen(networkAPI)
+        end
     )
 
     if returned == 2 then
@@ -523,24 +536,40 @@ end
 
 -- External functions
 
-local function wrap(modem)
-    modem.open(CHANNEL)
+local function wrap(networkObject)
+    networkObject.open(CHANNEL)
+    local networkAPI = {}
+
+    if networkObject.receive then
+        -- Socket or other API
+        networkAPI.send = networkObject.send
+        networkAPI.receive = networkObject.receive
+    else
+        -- Modem
+        networkAPI.send = function(channel, msg)
+            return networkObject.transmit(channel, channel, msg)
+        end
+        networkAPI.receive = function()
+            local _, _, channel, _, msg = os.pullEvent("modem_message")
+            return channel, msg
+        end
+    end
 
     return {
         listen = function()
-            return listen(modem)
+            return listen(networkAPI)
         end,
 
         connect = function(address, timeout)
-            return connect(modem, address, timeout)
+            return connect(networkAPI, address, timeout)
         end,
 
         send = function(address, message)
-            return send(modem, address, message)
+            return send(networkAPI, address, message)
         end,
 
         receive = function(addressFilter, timeout)
-            return receive(modem, addressFilter, timeout)
+            return receive(networkAPI, addressFilter, timeout)
         end
     }
 end
