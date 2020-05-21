@@ -278,7 +278,7 @@ end
 
 -- Verifies authenticity and decrypts an incoming message
 local function internalProcessMessage(message)
-    -- Public data    
+    -- Public data
     local ciphertext = message.ciphertext
     local otherAddress = message.from
     local unauthCounter = message.counter
@@ -505,7 +505,7 @@ local function receive(modem, addressFilter, timeout)
             while true do
                 local _
                 _, from, message = os.pullEvent("ecnet_message")
-                
+
                 if not addressFilter or from == addressFilter then
                     return
                 end
@@ -530,7 +530,7 @@ local function wrap(modem)
         listen = function()
             return listen(modem)
         end,
-        
+
         connect = function(address, timeout)
             return connect(modem, address, timeout)
         end,

@@ -1,9 +1,7 @@
 -- aecrypt.lua - Authenticated encryption
 
 local chacha20 = require("ecnet.symmetric.chacha20")
-local sha256 = require("ecnet.symmetric.sha256")
 local siphash = require("ecnet.symmetric.siphash")
-local random = require("ecnet.symmetric.random")
 local util = require("ecnet.util")
 
 local mt = util.byteTableMT

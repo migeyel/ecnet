@@ -230,7 +230,6 @@ modQMT = {
 
 return {
     hashModQ = hashModQ,
-    randomModQ = randomModQ,
     decodeModQ = decodeModQ,
     inverseMontgomeryModQ = inverseMontgomeryModQ
 }

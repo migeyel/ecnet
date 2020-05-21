@@ -8,7 +8,6 @@ local bxor = bit32.bxor
 local band = bit32.band
 local blshift = bit32.lshift
 local brshift = bit32.arshift
-local textutils = _G.textutils
 local mt = util.byteTableMT
 
 local mod = 2^32
