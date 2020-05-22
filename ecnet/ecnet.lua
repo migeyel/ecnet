@@ -318,28 +318,30 @@ end
 -- Adds new messages to a queue and/or processes messages from the end of it
 -- Meant to be run as a coroutine
 -- Add messages to the queue as the first resume argument
--- Process existing messages in the queue by resuming with or without a new message
+-- Process existing messages in the queue by resuming with a new message or nil
+-- Note: The symmetric decryption functions already queue their own events, so all
+-- messages will eventually be processed even if no other events are queued
 local function processMessage(message)
     local internalCoro
     local messageQueue = {message}
     local isProcessing = false
-    local success, arg2, data
+    local currentMessage
 
     while true do
         if not isProcessing then
+            -- Take a message from the queue and process it
             if #messageQueue > 0 then
-                arg2 = table.remove(messageQueue, 1)
+                currentMessage = table.remove(messageQueue, 1)
                 internalCoro = coroutine.create(internalProcessMessage)
                 isProcessing = true
             end
         end
         if isProcessing then
-            -- argument arg2 is either the message (first-time run) or a filter
-            -- returned arg2 is either the sender (last-time run) or a filter
-            success, arg2, data = coroutine.resume(internalCoro, arg2)
+            local success, sender, data = coroutine.resume(internalCoro, currentMessage)
+            currentMessage = nil
             if coroutine.status(internalCoro) == "dead" then
                 if success then
-                    os.queueEvent("ecnet_message", arg2, data) -- arg2 = sender
+                    os.queueEvent("ecnet_message", sender, data)
                 end
                 isProcessing = false
             end
