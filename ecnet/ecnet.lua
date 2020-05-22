@@ -13,7 +13,10 @@ local random = require("ecnet.symmetric.random")
 local ecc = require("ecnet.ecc.ecc")
 
 local CHANNEL = 33635
-local SEED_PATH = "/.ecnet-secretseed"
+local EPHEMERAL_REFRESH_MS = 43200000 -- 12 hours
+local OLD_SEED_PATH = "/.ecnet-secretseed"
+local SECRETS_PATH = settings.get("ecnet.secrets_path")
+SECRETS_PATH = SECRETS_PATH or "/.ecnet_secrets"
 
 local programInitEpoch = os.epoch("utc")
 local sessions = {}
@@ -36,14 +39,58 @@ local function makeAddress(fixedKey)
     return address
 end
 
-if not fs.exists(SEED_PATH) then
-    local seed = random.random()
-    seed = string.char(unpack(seed))
-    util.saveFile(SEED_PATH, seed)
+-- Create secrets if not found
+if not fs.exists(SECRETS_PATH) then
+    -- Convert from 1.0 format if necessary
+    local seed
+    if fs.exists(OLD_SEED_PATH) then
+        seed = util.loadFile(OLD_SEED_PATH)
+    else
+        seed = random.random()
+        seed = string.char(unpack(seed))
+    end
+    local ephemeralSeed = random.random()
+
+    local secrets = {
+        seed = seed,
+        ephemeralSeed = string.char(unpack(ephemeralSeed)),
+        lastEphemeralUpdate = os.epoch("utc")
+    }
+
+    secrets = cbor.encode(secrets)
+    util.saveFile(SECRETS_PATH, secrets)
+    if fs.exists(OLD_SEED_PATH) then
+        fs.delete(OLD_SEED_PATH)
+    end
 end
-local seed = util.loadFile(SEED_PATH)
-local ownSecretKey, ownPublicKey = ecc.keypair(seed)
+
+-- Load secrets and derive public keys
+local secrets = util.loadFile(SECRETS_PATH)
+secrets = cbor.decode(secrets)
+local ownEphemeralSecretKey, ownEphemeralPublicKey = ecc.keypair(secrets.ephemeralSeed)
+ownEphemeralSecretKey = tostring(ownEphemeralSecretKey)
+ownEphemeralPublicKey = tostring(ownEphemeralPublicKey)
+local ownSecretKey, ownPublicKey = ecc.keypair(secrets.seed)
+ownSecretKey = tostring(ownSecretKey)
+ownPublicKey = tostring(ownPublicKey)
 local ownAddress = makeAddress(ownPublicKey)
+
+-- Utility functions
+
+local function saveSecrets()
+    local encodedSecrets = cbor.encode(secrets)
+    util.saveFile(SECRETS_PATH, encodedSecrets)
+end
+
+local function updateEphemeralKeysIfTimeReached()
+    if os.epoch("utc") > secrets.lastEphemeralUpdate + EPHEMERAL_REFRESH_MS then
+        local ephemeralSeed = random.random()
+
+        secrets.lastEphemeralUpdate = os.epoch("utc")
+        secrets.ephemeralSeed = string.char(unpack(ephemeralSeed))
+        saveSecrets()
+    end
+end
 
 -- Internal network functions
 
@@ -67,6 +114,8 @@ end
 
 -- Makes and sends a connection request
 local function makeConnectionRequest(networkAPI, otherPublicKey)
+    updateEphemeralKeysIfTimeReached()
+
     -- Public data
     local otherAddress = makeAddress(otherPublicKey)
 
@@ -77,29 +126,25 @@ local function makeConnectionRequest(networkAPI, otherPublicKey)
     else
         sharedSecret = ecc.exchange(ownSecretKey, otherPublicKey)
     end
-    local ownEphemeralSecretKey, ownEphemeralPublicKey = ecc.keypair()
     local ownTagKey = sha256.hmac("senderTagKey", sharedSecret)
 
     -- Make request
     local counter = os.epoch("utc")
-    local ownTag = sha256.hmac(
-        tostring(ownEphemeralPublicKey) .. tostring(counter),
-        ownTagKey
-    )
+    local ownTag = tostring(sha256.hmac(ownEphemeralPublicKey .. tostring(counter), ownTagKey)):sub(1, 10)
     local request = {
         type = "connectionRequest",
         from = ownAddress,
         to = otherAddress,
-        publicKey = tostring(ownPublicKey),
-        ephemeralPublicKey = tostring(ownEphemeralPublicKey),
-        tag = tostring(ownTag):sub(1, 10),
+        publicKey = ownPublicKey,
+        ephemeralPublicKey = ownEphemeralPublicKey,
+        tag = ownTag,
         counter = counter
     }
     networkAPI.send(CHANNEL, request)
 
     -- Make request secrets
     local requestSecrets = {
-        ephemeralSecretKey = tostring(ownEphemeralSecretKey),
+        ephemeralSecretKey = ownEphemeralSecretKey,
         sharedSecret = sharedSecret,
         otherAddress = otherAddress
     }
@@ -117,7 +162,7 @@ local function processAddressRequest(networkAPI, request)
         type = "addressResponse",
         from = ownAddress,
         to = otherAddress,
-        publicKey = tostring(ownPublicKey)
+        publicKey = ownPublicKey
     }
     networkAPI.send(CHANNEL, response)
 end
@@ -138,8 +183,10 @@ end
 
 -- Verifies authenticity of a connection request
 -- Sends back a connection response
--- Creates a new session from the request
+-- Creates a new session from the request if needed
 local function processConnectionRequest(networkAPI, request)
+    updateEphemeralKeysIfTimeReached()
+
     -- Public data
     local otherPublicKey = request.publicKey
     local otherEphemeralPublicKey = request.ephemeralPublicKey
@@ -160,67 +207,68 @@ local function processConnectionRequest(networkAPI, request)
         assert(counter > programInitEpoch)
     end
 
-    -- Private data
-    local sharedSecret
-    if sessions[otherAddress] then
-        sharedSecret = sessions[otherAddress].sharedSecret
-    else
-        sharedSecret = ecc.exchange(ownSecretKey, otherPublicKey)
-    end
-    local ownEphemeralSecretKey, ownEphemeralPublicKey = ecc.keypair()
-    local ephemeralSharedSecret = ecc.exchange(
-        ownEphemeralSecretKey,
-        otherEphemeralPublicKey
-    )
-    local masterKey = sha256.hmac(ephemeralSharedSecret, sharedSecret)
-    local senderEncryptionKey = sha256.hmac("senderEncryptionKey", masterKey)
-    local senderMacKey = {unpack(sha256.hmac("senderMacKey", masterKey), 1,16)}
-    local receiverEncryptionKey = sha256.hmac("receiverEncryptionKey", masterKey)
-    local receiverMacKey = {unpack(sha256.hmac("receiverMacKey", masterKey), 1, 16)}
-    local otherTagKey = sha256.hmac("senderTagKey", sharedSecret)
-    local ownTagKey = sha256.hmac("receiverTagKey", masterKey)
+    if ( -- The cached session is no longer valid
+        not sessions[otherAddress]
+        or sessions[otherAddress].ephemeralPublicKey ~= otherEphemeralPublicKey
+        or sessions[otherAddress].ownEphemeralPublicKey ~= ownEphemeralPublicKey
+    ) then
+        -- Private data
+        local sharedSecret
+        if sessions[otherAddress] then
+            sharedSecret = sessions[otherAddress].sharedSecret
+        else
+            sharedSecret = ecc.exchange(ownSecretKey, otherPublicKey)
+        end
+        local ephemeralSharedSecret = ecc.exchange(
+            ownEphemeralSecretKey,
+            otherEphemeralPublicKey
+        )
+        local masterKey = sha256.hmac(ephemeralSharedSecret, sharedSecret)
+        local senderEncryptionKey = sha256.hmac("senderEncryptionKey", masterKey)
+        local senderMacKey = {unpack(sha256.hmac("senderMacKey", masterKey), 1,16)}
+        local receiverEncryptionKey = sha256.hmac("receiverEncryptionKey", masterKey)
+        local receiverMacKey = {unpack(sha256.hmac("receiverMacKey", masterKey), 1, 16)}
+        local otherTagKey = sha256.hmac("senderTagKey", sharedSecret)
+        local ownTagKey = sha256.hmac("receiverTagKey", masterKey)
 
-    -- Assert private validity
-    assert(
-        tostring(
-            sha256.hmac(
-                otherEphemeralPublicKey .. tostring(counter),
-                otherTagKey
-            )
-        ):sub(1, 10) == otherTag
-    )
+        -- Assert private validity
+        local calculatedHMAC = sha256.hmac(otherEphemeralPublicKey .. tostring(counter), otherTagKey)
+        local calculatedTag = {unpack(calculatedHMAC, 1, 10)}
+        assert(util.byteTableMT.__index.isEqual(calculatedTag, {otherTag:byte(1, 10)}))
+
+        -- Make new session
+        sessions[otherAddress] = {
+            publicKey = otherPublicKey,
+            ephemeralPublicKey = otherEphemeralPublicKey,
+            ownEphemeralPublicKey = ownEphemeralPublicKey,
+            ownTagKey = ownTagKey,
+            sharedSecret = sharedSecret,
+            ownEncryptionKey = receiverEncryptionKey,
+            ownMacKey = receiverMacKey,
+            otherEncryptionKey = senderEncryptionKey,
+            otherMacKey = senderMacKey,
+            counter = counter
+        }
+    end
 
     -- Make response
-    local counter = os.epoch("utc")
-    local ownTag = sha256.hmac(
-        tostring(ownEphemeralPublicKey) .. tostring(counter),
-        ownTagKey
-    )
+    local responseCounter = os.epoch("utc")
+    local ownTagKey = sessions[otherAddress].ownTagKey
+    local ownTag = tostring(sha256.hmac(ownEphemeralPublicKey .. tostring(responseCounter), ownTagKey)):sub(1, 10)
     local response = {
         type = "connectionResponse",
         from = ownAddress,
         to = otherAddress,
-        publicKey = tostring(ownPublicKey),
-        ephemeralPublicKey = tostring(ownEphemeralPublicKey),
-        tag = tostring(ownTag):sub(1, 10),
-        counter = counter
-    }
-
-    -- Make new session
-    sessions[otherAddress] = {
-        publicKey = otherPublicKey,
-        sharedSecret = sharedSecret,
-        ownEncryptionKey = receiverEncryptionKey,
-        ownMacKey = receiverMacKey,
-        otherEncryptionKey = senderEncryptionKey,
-        otherMacKey = senderMacKey,
-        counter = counter
+        publicKey = ownPublicKey,
+        ephemeralPublicKey = ownEphemeralPublicKey,
+        tag = ownTag,
+        counter = responseCounter
     }
     networkAPI.send(CHANNEL, response)
 end
 
 -- Verifies authenticity of a connection response
--- Creates a new session from the response
+-- Creates a new session from the response if needed
 local function processConnectionResponse(requestSecrets, response)
     -- Public data
     local otherPublicKey = response.publicKey
@@ -237,41 +285,51 @@ local function processConnectionResponse(requestSecrets, response)
     assert(makeAddress(otherPublicKey) == otherAddress)
     assert(type(otherTag) == "string" and #otherTag == 10)
     assert(type(counter) == "number")
+    if sessions[otherAddress] then
+        assert(counter > sessions[otherAddress].counter)
+    else
+        assert(counter > programInitEpoch)
+    end
 
-    -- Private data
-    local ownEphemeralSecretKey = requestSecrets.ephemeralSecretKey
-    local sharedSecret = requestSecrets.sharedSecret
-    local ephemeralSharedSecret = ecc.exchange(
-        ownEphemeralSecretKey,
-        otherEphemeralPublicKey
-    )
-    local masterKey = sha256.hmac(ephemeralSharedSecret, sharedSecret)
-    local senderEncryptionKey = sha256.hmac("senderEncryptionKey", masterKey)
-    local senderMacKey = {unpack(sha256.hmac("senderMacKey", masterKey), 1,16)}
-    local receiverEncryptionKey = sha256.hmac("receiverEncryptionKey", masterKey)
-    local receiverMacKey = {unpack(sha256.hmac("receiverMacKey", masterKey), 1, 16)}
-    local otherTagKey = sha256.hmac("receiverTagKey", masterKey)
+    if ( -- The cached session is no longer valid
+        not sessions[otherAddress]
+        or sessions[otherAddress].ephemeralPublicKey ~= otherEphemeralPublicKey
+        or sessions[otherAddress].ownEphemeralPublicKey ~= ownEphemeralPublicKey
+    ) then
+        -- Private data
+        local ownRequestEphemeralSecretKey = requestSecrets.ephemeralSecretKey
+        local sharedSecret = requestSecrets.sharedSecret
+        local ephemeralSharedSecret = ecc.exchange(
+            ownRequestEphemeralSecretKey,
+            otherEphemeralPublicKey
+        )
+        local masterKey = sha256.hmac(ephemeralSharedSecret, sharedSecret)
+        local senderEncryptionKey = sha256.hmac("senderEncryptionKey", masterKey)
+        local senderMacKey = {unpack(sha256.hmac("senderMacKey", masterKey), 1,16)}
+        local receiverEncryptionKey = sha256.hmac("receiverEncryptionKey", masterKey)
+        local receiverMacKey = {unpack(sha256.hmac("receiverMacKey", masterKey), 1, 16)}
+        local otherTagKey = sha256.hmac("receiverTagKey", masterKey)
+        local ownTagKey = sha256.hmac("senderTagKey", masterKey)
 
-    -- Assert private validity
-    assert(
-        tostring(
-            sha256.hmac(
-                otherEphemeralPublicKey .. tostring(counter),
-                otherTagKey
-            )
-        ):sub(1, 10) == otherTag
-    )
+        -- Assert private validity
+        local calculatedHMAC = sha256.hmac(otherEphemeralPublicKey .. tostring(counter), otherTagKey)
+        local calculatedTag = {unpack(calculatedHMAC, 1, 10)}
+        assert(util.byteTableMT.__index.isEqual(calculatedTag, {otherTag:byte(1, 10)}))
 
-    -- Make new session
-    sessions[otherAddress] = {
-        publicKey = otherPublicKey,
-        sharedSecret = sharedSecret,
-        ownEncryptionKey = senderEncryptionKey,
-        ownMacKey = senderMacKey,
-        otherEncryptionKey = receiverEncryptionKey,
-        otherMacKey = receiverMacKey,
-        counter = counter
-    }
+        -- Make new session
+        sessions[otherAddress] = {
+            publicKey = otherPublicKey,
+            ephemeralPublicKey = otherEphemeralPublicKey,
+            ownEphemeralPublicKey = ownEphemeralPublicKey,
+            ownTagKey = ownTagKey,
+            sharedSecret = sharedSecret,
+            ownEncryptionKey = senderEncryptionKey,
+            ownMacKey = senderMacKey,
+            otherEncryptionKey = receiverEncryptionKey,
+            otherMacKey = receiverMacKey,
+            counter = counter
+        }
+    end
 end
 
 -- Verifies authenticity and decrypts an incoming message
@@ -294,8 +352,7 @@ local function internalProcessMessage(message)
     local otherMacKey = sessions[otherAddress].otherMacKey
 
     -- Decrypt data
-    local outerLayer = aecrypt.decrypt(ciphertext, otherEncryptionKey, otherMacKey)
-    outerLayer = tostring(outerLayer)
+    local outerLayer = tostring(aecrypt.decrypt(ciphertext, otherEncryptionKey, otherMacKey))
     local messageCounter = 0
     for i = 1, 6 do
         messageCounter = messageCounter * 256
@@ -482,7 +539,7 @@ local function send(networkAPI, otherAddress, data)
     outerLayer = outerLayer .. string.char(#data % 256)
     outerLayer = outerLayer .. data
     outerLayer = outerLayer .. ("\0"):rep((-#data - 1) % 256)
-    local ciphertext = aecrypt.encrypt(outerLayer, ownEncryptionKey, ownMacKey)
+    local ciphertext = tostring(aecrypt.encrypt(outerLayer, ownEncryptionKey, ownMacKey))
 
     -- Send message
     local message = {
