@@ -39,9 +39,10 @@ That's it. If everything goes well, computer 2 will have printed something like 
 ```
 
 ## Actual Documentation
-### Functions
-`ecnet.address` is a string that returns the computer's address. Those are unique but can be reset by deleting the secret key at `/.ecnet-secretseed`
+### External Variables
+`ecnet.address` is a string that contains the computer's address. Those are unique but can be reset by deleting the secrets file (stored by default at `/.ecnet_secrets`).
 
+### Functions
 `ecnet.wrap(networkObject:table):table` takes either a modem-like or rednet-like handle and outputs another handle for sending and receiving messages. Wrap expects from modem-like handles the same functions as a modem and from rednet-like handles the functions `open(channel:number)`, `send(channel:number, message:string)` and a `receive()` function that returns a channel and a message. We'll call this new handle `s_modem` from now on.
 
 `s_modem.connect(address:string, timeout:number):boolean` will attempt to connect to an address and times out after `timeout` seconds. Will return `true` if connected and `false` if timed out.
