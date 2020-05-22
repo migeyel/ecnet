@@ -129,8 +129,8 @@ local function tagged(tag, value)
 	return setmetatable({ tag = tag, value = value }, tagged_mt);
 end
 
-local null = simple(22, "null"); -- explicit null
-local undefined = simple(23, "undefined"); -- undefined or nil
+local null = nil -- simple(22, "null"); -- explicit null
+local undefined = nil -- simple(23, "undefined"); -- undefined or nil
 local BREAK = simple(31, "break", "\255");
 
 -- Number types dispatch
