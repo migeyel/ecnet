@@ -631,9 +631,14 @@ local function wrap(networkObject)
     }
 end
 
+local function genToken()
+    return ecc.random.random():toHex():sub(1, 20)
+end
+
 local ecnet = {
     wrap = wrap,
-    address = ownAddress
+    address = ownAddress,
+    genToken = genToken
 }
 
 package.loaded["ecnet"] = ecnet

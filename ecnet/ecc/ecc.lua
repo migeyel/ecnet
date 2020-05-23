@@ -67,5 +67,6 @@ return {
     keypair = keypair,
     exchange = exchange,
     sign = sign,
-    verify = verify
+    verify = verify,
+    random = random
 }
