@@ -20,7 +20,8 @@ SECRETS_PATH = SECRETS_PATH or "/.ecnet_secrets"
 
 local programInitEpoch = os.epoch("utc")
 local sessions = {}
-local listening = false
+local publicKeys = {}
+local connections = {}
 
 local function makeAddress(fixedKey)
     local hash = sha256.digest(fixedKey)
@@ -178,7 +179,7 @@ local function processAddressResponse(requestSecrets, response)
     assert(type(otherPublicKey) == "string" and #otherPublicKey == 22)
     assert(makeAddress(otherPublicKey) == otherAddress)
 
-    return otherPublicKey
+    publicKeys[otherAddress] = otherPublicKey
 end
 
 -- Verifies authenticity of a connection request
@@ -238,7 +239,6 @@ local function processConnectionRequest(networkAPI, request)
 
         -- Make new session
         sessions[otherAddress] = {
-            publicKey = otherPublicKey,
             ephemeralPublicKey = otherEphemeralPublicKey,
             ownEphemeralPublicKey = ownEphemeralPublicKey,
             ownTagKey = ownTagKey,
@@ -318,7 +318,6 @@ local function processConnectionResponse(requestSecrets, response)
 
         -- Make new session
         sessions[otherAddress] = {
-            publicKey = otherPublicKey,
             ephemeralPublicKey = otherEphemeralPublicKey,
             ownEphemeralPublicKey = ownEphemeralPublicKey,
             ownTagKey = ownTagKey,
@@ -365,7 +364,7 @@ local function internalProcessMessage(message)
 
     -- Assert private validity
     assert(messageCounter > sessionCounter)
-    
+
     -- Increment session counter
     sessions[otherAddress].counter = messageCounter
 
@@ -409,10 +408,50 @@ end
 
 local wrappedProcessMessage = coroutine.wrap(processMessage)
 
+-- Adds a connection to the connections table
+local function addConnection(networkAPI, address)
+    local connection = {
+        address = address,
+        stage = nil
+    }
+
+    if publicKeys[address] then
+        connection.stage = "connect"
+        connection.secrets = makeConnectionRequest(networkAPI, publicKeys[address])
+    else
+        connection.stage = "pk"
+        connection.secrets = makeAddressRequest(networkAPI, address)
+    end
+
+    connections[address] = connection
+end
+
+-- Meant to be run as a coroutine
+-- Receives connection response messages and updates the status of ongoing connections
+local function handleResponse(networkAPI, message)
+    if message.type == "addressResponse" then
+        assert(not publicKeys[message.from])
+        assert(connections[message.from].stage == "pk")
+        local connection = connections[message.from]
+
+        processAddressResponse(connection.secrets, message)
+        -- address response processed without errors
+        connection.stage = "connect"
+        connection.secrets = makeConnectionRequest(networkAPI, publicKeys[message.from])
+    elseif message.type == "connectionResponse" then
+        assert(connections[message.from].stage == "connect")
+        local connection = connections[message.from]
+
+        processConnectionResponse(connection.secrets, message)
+        -- connection response processed without errors
+        connections[message.from] = nil
+        os.queueEvent("ecnet_connection", message.from)
+    end
+end
+
 -- Listens to received messages, processes them and queues events
--- Can handle address requests, connection requests and messages
--- Queues event {"ecnet_message", address_from, message}
--- Queues event {"ecnet_connection", address_from}
+-- Queues event {"ecnet_message", address_from, message} (in wrappedProcessMessage)
+-- Queues event {"ecnet_connection", address_from} (in handleResponse and in listen)
 local function listen(networkAPI)
     parallel.waitForAny(
         function()
@@ -429,6 +468,7 @@ local function listen(networkAPI)
                     if channel ~= CHANNEL then break end
                     if type(received) ~= "table" then break end
                     if received.to ~= ownAddress then break end
+                    if type(received.from) ~= "string" then break end
 
                     if received.type == "addressRequest" then
                         pcall(processAddressRequest, networkAPI, received)
@@ -442,6 +482,8 @@ local function listen(networkAPI)
                         if success then
                             os.queueEvent("ecnet_connection", received.from)
                         end
+                    elseif received.type == "addressResponse" or received.type == "connectionResponse" then
+                        pcall(handleResponse, networkAPI, received)
                     elseif received.type == "message" then
                         wrappedProcessMessage(received)
                     end
@@ -453,66 +495,26 @@ end
 
 -- Performs the connection handshake to an address
 local function connect(networkAPI, address, timeout)
+    addConnection(networkAPI, address)
+
     local returned = parallel.waitForAny(
         function()
-            sleep(timeout)
+            while true do
+                local _, connectionAddress = os.pullEvent("ecnet_connection")
+                if connectionAddress == address then
+                    return
+                end
+            end
         end,
         function()
-            -- Get public key
-            local otherPublicKey
-            if sessions[address] then
-                otherPublicKey = sessions[address].publicKey
-            else
-                local requestSecrets = makeAddressRequest(networkAPI, address)
-
-                while true do
-                    local channel, received = networkAPI.receive()
-
-                    if (
-                        channel == CHANNEL
-                        and type(received) == "table"
-                        and received.to == ownAddress
-                        and received.from == address
-                        and received.type == "addressResponse"
-                    ) then
-                        local success
-                        success, otherPublicKey = pcall(
-                            processAddressResponse,
-                            requestSecrets,
-                            received
-                        )
-                        if success then break end
-                    end
-                end
-            end
-
-            -- Connect
-            local requestSecrets = makeConnectionRequest(networkAPI, otherPublicKey)
-            while true do
-                local channel,received = networkAPI.receive()
-
-                if (
-                    channel == CHANNEL
-                    and type(received) == "table"
-                    and received.to == ownAddress
-                    and received.from == address
-                    and received.type == "connectionResponse"
-                ) then
-                    local success = pcall(
-                        processConnectionResponse,
-                        requestSecrets,
-                        received
-                    )
-                    if success then break end
-                end
-            end
+            sleep(timeout)
         end,
         function()
             listen(networkAPI)
         end
     )
 
-    return (returned == 2)
+    return returned == 1
 end
 
 -- Sends a message with data to an address
@@ -618,7 +620,11 @@ local function wrap(networkObject)
         end,
 
         connect = function(address, timeout)
-            return connect(networkAPI, address, timeout)
+            if timeout then
+                return connect(networkAPI, address, timeout)
+            else
+                return addConnection(networkAPI, address)
+            end
         end,
 
         send = function(address, message)

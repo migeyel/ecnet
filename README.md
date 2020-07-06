@@ -47,7 +47,7 @@ That's it. If everything goes well, computer 2 will have printed something like 
 
 `ecnet.wrap(networkObject:table):table` takes either a modem-like or rednet-like handle and outputs another handle for sending and receiving messages. Wrap expects from modem-like handles the same functions as a modem and from rednet-like handles the functions `open(channel:number)`, `send(channel:number, message:string)` and a `receive()` function that returns a channel and a message. We'll call this new handle `s_modem` from now on.
 
-`s_modem.connect(address:string, timeout:number):boolean` will attempt to connect to an address and times out after `timeout` seconds. Will return `true` if connected and `false` if timed out.
+`s_modem.connect(address:string[, timeout:number])` will attempt to connect to an address and times out after `timeout` seconds. Will return `true` if connected and `false` if timed out. If no timeout is passed, will make the connection attempt asynchronously and return `nil`. Asynchronous connection attempts require you to run `listen` in parallel and will queue the `ecnet_connection` event when successful.
 
 `s_modem.listen()` will listen to modem messages, queue events and answer connection requests. It is not expected to return nor error.
 
