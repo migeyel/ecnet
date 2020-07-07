@@ -40,6 +40,13 @@ local function makeAddress(fixedKey)
     return address
 end
 
+local function isValidAddress(address)
+    if #address ~= 24 then
+        return false
+    end
+    return not not address:find(("%x%x%x%x:"):rep(5):sub(1, -2))
+end
+
 -- Create secrets if not found
 if not fs.exists(SECRETS_PATH) then
     -- Convert from 1.0 format if necessary
@@ -410,6 +417,10 @@ local wrappedProcessMessage = coroutine.wrap(processMessage)
 
 -- Adds a connection to the connections table
 local function addConnection(networkAPI, address)
+    if not isValidAddress(address) then
+        return
+    end
+
     local connection = {
         address = address,
         stage = nil
@@ -495,6 +506,10 @@ end
 
 -- Performs the connection handshake to an address
 local function connect(networkAPI, address, timeout)
+    if not isValidAddress(address) then
+        return false
+    end
+
     addConnection(networkAPI, address)
 
     local returned = parallel.waitForAny(
