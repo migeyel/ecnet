@@ -19,6 +19,7 @@ local SECRETS_PATH = settings.get("ecnet.secrets_path")
 SECRETS_PATH = SECRETS_PATH or "/.ecnet_secrets"
 
 local programInitEpoch = os.epoch("utc")
+local secrets = {}
 local sessions = {}
 local publicKeys = {}
 local connections = {}
@@ -47,6 +48,38 @@ local function isValidAddress(address)
     return not not address:find(("%x%x%x%x:"):rep(5):sub(1, -2))
 end
 
+local function toHex(str)
+    return ("%02x"):rep(#str):format(str:byte(1, -1))
+end
+
+local function fromHex(str)
+    local result = {}
+    for i = 1, #str, 2 do
+        result[#result + 1] = tonumber(str:sub(i, i + 1), 16)
+    end
+    return string.char(unpack(result))
+end
+
+local function saveSecrets()
+    local encodedSecrets = {
+        seed = toHex(secrets.seed),
+        ephemeralSeed = toHex(secrets.ephemeralSeed),
+        lastEphemeralUpdate = tostring(secrets.lastEphemeralUpdate)
+    }
+    encodedSecrets = textutils.serialize(encodedSecrets)
+    util.saveFile(SECRETS_PATH, encodedSecrets)
+end
+
+local function loadSecrets()
+    local encodedSecrets = util.loadFile(SECRETS_PATH)
+    encodedSecrets = textutils.unserialize(encodedSecrets)
+    secrets = {
+        seed = fromHex(encodedSecrets.seed),
+        ephemeralSeed = fromHex(encodedSecrets.ephemeralSeed),
+        lastEphemeralUpdate = tonumber(encodedSecrets.lastEphemeralUpdate)
+    }
+end
+
 -- Create secrets if not found
 if not fs.exists(SECRETS_PATH) then
     -- Convert from 1.0 format if necessary
@@ -59,22 +92,20 @@ if not fs.exists(SECRETS_PATH) then
     end
     local ephemeralSeed = random.random()
 
-    local secrets = {
+    secrets = {
         seed = seed,
         ephemeralSeed = string.char(unpack(ephemeralSeed)),
         lastEphemeralUpdate = os.epoch("utc")
     }
 
-    secrets = cbor.encode(secrets)
-    util.saveFile(SECRETS_PATH, secrets)
+    saveSecrets()
     if fs.exists(OLD_SEED_PATH) then
         fs.delete(OLD_SEED_PATH)
     end
 end
 
 -- Load secrets and derive public keys
-local secrets = util.loadFile(SECRETS_PATH)
-secrets = cbor.decode(secrets)
+loadSecrets()
 local ownEphemeralSecretKey, ownEphemeralPublicKey = ecc.keypair(secrets.ephemeralSeed)
 ownEphemeralSecretKey = tostring(ownEphemeralSecretKey)
 ownEphemeralPublicKey = tostring(ownEphemeralPublicKey)
@@ -84,11 +115,6 @@ ownPublicKey = tostring(ownPublicKey)
 local ownAddress = makeAddress(ownPublicKey)
 
 -- Utility functions
-
-local function saveSecrets()
-    local encodedSecrets = cbor.encode(secrets)
-    util.saveFile(SECRETS_PATH, encodedSecrets)
-end
 
 local function updateEphemeralKeysIfTimeReached()
     if os.epoch("utc") > secrets.lastEphemeralUpdate + EPHEMERAL_REFRESH_MS then
