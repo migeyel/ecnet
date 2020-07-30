@@ -11,8 +11,12 @@ local random = require("ecnet.symmetric.random")
 local mt = util.byteTableMT
 
 local function keypair(seed)
-    seed = seed or random.random()
-    local x = modq.hashModQ(seed)
+    local x
+    if seed then
+        x = modq.hashModQ(seed)
+    else
+        x = modq.randomModQ()
+    end
     local Y = curve.G * x
 
     local privateKey = x:encode()
@@ -36,7 +40,7 @@ local function sign(privateKey, message)
     local message = type(message) == "table" and string.char(unpack(message)) or tostring(message)
     local privateKey = type(privateKey) == "table" and string.char(unpack(privateKey)) or tostring(privateKey)
     local x = modq.decodeModQ(privateKey)
-    local k = modq.hashModQ(message .. privateKey)
+    local k = modq.randomModQ()
     local R = curve.G * k
     local e = modq.hashModQ(message .. tostring(R))
     local s = k - x * e

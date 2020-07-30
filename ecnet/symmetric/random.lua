@@ -81,7 +81,7 @@ local function random()
 
     local result = sha256.hmac("out", entropy)
     entropy = tostring(sha256.digest(entropy))
-    
+
     return result
 end
 

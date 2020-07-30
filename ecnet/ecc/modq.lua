@@ -4,6 +4,7 @@
 local util = require("ecnet.util")
 local arith = require("ecnet.ecc.arith")
 local sha256 = require("ecnet.symmetric.sha256")
+local random = require("ecnet.symmetric.random")
 
 local isEqual = arith.isEqual
 local compare = arith.compare
@@ -50,7 +51,7 @@ local function subModQ(a, b)
     if result[7] < 0 then
         result = add(result, q)
     end
-    
+
     return setmetatable(result, modQMT)
 end
 
@@ -136,6 +137,16 @@ local function decodeModQ(s)
     result[7] = result[7] % q[7]
 
     return setmetatable(result, modQMT)
+end
+
+local function randomModQ()
+    while true do
+        local s = {unpack(random.random(), 1, 21)}
+        local result = decodeInt(s)
+        if result[7] < q[7] then
+            return setmetatable(result, modQMT)
+        end
+    end
 end
 
 local function hashModQ(data)
