@@ -42,7 +42,8 @@ function Connection:_handle(packet, _)
     local deserialize = self._protocol._interface.deserialize
     local ok, message = pcall(deserialize, msg)
     if ok then
-        os.queueEvent("ecnet2_message", self.id, self._state.pk, message)
+        local addr = addressEncoder.encode(self._state.pk)
+        os.queueEvent("ecnet2_message", self.id, addr, message)
     end
 end
 
@@ -76,7 +77,7 @@ function Connection:receive(timeout)
             return
         elseif event == "ecnet2_message" and p1 == self.id then
             os.cancelTimer(timer)
-            return addressEncoder.encode(p2), p3
+            return p2, p3
         end
     end
 end
