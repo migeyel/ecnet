@@ -1,10 +1,8 @@
-local redrun = require "redrun"
 local constants = require "ecnet2.constants"
 
 --- The global daemon state.
---- @class ecnet2.EcnetdState
---- @field handlers table<string, fun(etc: string, side: string)>
-local state
+
+local handlers = {}
 
 --- @param message string
 local function enqueue(message, side)
@@ -13,28 +11,32 @@ local function enqueue(message, side)
     if #message < 32 then return end
     local descriptor = message:sub(1, 32)
     local etc = message:sub(33)
-    local handler = state.handlers[descriptor]
+    local handler = handlers[descriptor]
     if handler then return handler(etc, side) end
 end
 
-local function ecnetd()
-    while not state do coroutine.yield() end
+local function daemon()
     while true do
         local _, side, ch, _, msg = coroutine.yield("modem_message")
         if ch == constants.CHANNEL then enqueue(msg, side) end
     end
 end
 
--- Spin up a daemon to handle incoming modem messages if none exist.
-local id = redrun.getid("ecnetd")
-if id then
-    state = assert(redrun.getstate(id))
-else
-    id = redrun.start(ecnetd, "ecnetd")
-    state = assert(redrun.getstate(id))
-    state.handlers = setmetatable({}, { __mode = "v" })
+local function addHandler(name, fun)
+    assert(not handlers[name], "Handler collision: " .. name)
+    handlers[name] = fun
 end
 
+local function removeHandler(name)
+    handlers[name] = nil
+end
+
+--- @class ecnet2.EcnetdState
+--- @field daemon fun()
+--- @field addHandler fun(name: string, fun: function)
+--- @field removeHandler fun(name: string)
 return {
-    handlers = state.handlers,
+    daemon = daemon,
+    addHandler = addHandler,
+    removeHandler = removeHandler,
 }
