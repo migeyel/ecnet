@@ -22,13 +22,13 @@ function Connection:initialise(state, protocol, side)
     self._side = side
     self._handler = function(m, _, c, d) return self:_handle(m, _, c, d) end
     self._state = state
-    if state.d then ecnetd.handlers[state.d] = self._handler end
+    if state.d then ecnetd.addHandler(state.d, self._handler) end
 end
 
 --- @param newState ecnet2.HandshakeState
 function Connection:_setState(newState)
-    if self._state.d then ecnetd.handlers[self._state.d] = nil end
-    if newState.d then ecnetd.handlers[newState.d] = self._handler end
+    if self._state.d then ecnetd.removeHandler(self._state.d) end
+    if newState.d then ecnetd.addHandler(newState.d, self._handler) end
     self._state = newState
 end
 

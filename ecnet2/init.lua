@@ -2,6 +2,7 @@ local constants = require "ecnet2.constants"
 local Identity = require "ecnet2.Identity"
 local modems = require "ecnet2.modems"
 local Protocol = require "ecnet2.Protocol"
+local ecnetd = require "ecnet2.ecnetd"
 
 local module = {}
 
@@ -22,6 +23,8 @@ end
 module.open = modems.open
 module.close = modems.close
 module.isOpen = modems.isOpen
+
+module.daemon = ecnetd.daemon
 
 --- Creates a protocol from a given interface.
 --- @param interface ecnet2.IProtocol A table describing the protocol.
