@@ -5,7 +5,6 @@ examples in the examples directory.
 ## Dependencies
 - [CCryptolib](https://github.com/migeyel/ccryptolib) >=1.1.0 (you still need to
   initialize the random generator yourself)
-- [RedRun](https://gist.github.com/MCJack123/473475f07b980d57dd2bd818026c97e8)
 
 ## Goals
 - Let the user manage the lifetime of connections.
@@ -32,6 +31,10 @@ Returns whether a modem is open for communications.
 
 ### `ecnet2.address(): string`
 Returns the address for connecting to this device.
+
+### `ecnet2.daemon`
+Function used for managing listener and connection events.
+Intended to be put in parallel with users code.
 
 ### `ecnet2.Protocol(interface: IProtocol): Protocol`
 Creates a protocol from a given interface.

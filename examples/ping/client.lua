@@ -1,6 +1,7 @@
 local ecnet2 = require "ecnet2"
 local random = require "ccryptolib.random"
 
+-- https://www.random.org/strings/?num=1&len=32&digits=on&upperalpha=on&loweralpha=on&unique=on&format=plain&rnd=new
 -- Initialize the random generator.
 local postHandle = assert(http.post("https://krist.dev/ws/start", "{}"))
 local data = textutils.unserializeJSON(postHandle.readAll())
@@ -23,16 +24,20 @@ local ping = ecnet2.Protocol {
 }
 
 -- The server's address.
-local server = "OWLYs4X14N2brkhiZMHAScqjEydM27DOVLmLu3jmbhg="
+local server = "AZ2cVrQTGDLLRodwHFS3RoNYQOW0O_iCctVWxc9IrXQ="
 
--- Connect to the server.
-local connection = ping:connect(server, "top")
+local function main()
+    -- Connect to the server.
+    local connection = ping:connect(server, "top")
 
--- Wait for the greeting.
-print(select(2, connection:receive()))
-
--- Read inputs and print ping outputs.
-while true do
-    connection:send(read())
+    -- Wait for the greeting.
     print(select(2, connection:receive()))
+
+    -- Read inputs and print ping outputs.
+    while true do
+        connection:send(read())
+        print(select(2, connection:receive()))
+    end
 end
+
+parallel.waitForAny(main, ecnet2.daemon)

@@ -23,7 +23,7 @@ function Listener:initialise(protocol)
     self._processed = setmetatable({}, { __mode = "v" })
     self._handler = function(m, s) return self:_handle(m, s) end
     local descriptor = blake3.digest(self._psk)
-    ecnetd.handlers[descriptor] = self._handler
+    ecnetd.addHandler(descriptor, self._handler)
 end
 
 --- Handles an incoming packet.
