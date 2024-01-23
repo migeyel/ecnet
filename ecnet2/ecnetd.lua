@@ -2,7 +2,7 @@ local constants = require "ecnet2.constants"
 
 --- The global daemon state.
 
-local handlers = {}
+local handlers = setmetatable({}, { __mode = "v" })
 
 --- @param message string
 local function enqueue(message, side)
@@ -23,7 +23,6 @@ local function daemon()
 end
 
 local function addHandler(name, fun)
-    assert(not handlers[name], "Handler collision: " .. name)
     handlers[name] = fun
 end
 
