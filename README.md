@@ -95,16 +95,16 @@ A connection request.
 - `listenerId` - The `id` field of the listener that received this request.
 - `request` - The request to pass on to the `accept` method.
 - `side` - Which modem the request was received through.
-- `channel` - The channel the request was sent on.
-- `distance` - Distance of the sender.
+- `channel` - The channel the request was received on.
+- `distance` - Distance to the sender of the underlying modem message. This may not match the true originator for relayed messages.
 
 ### `"ecnet2_message", connectionId: string, sender: string, message: any`
 A message in a connection.
 - `connectionId` - The `id` field of the connection that received this message.
 - `sender` - The sender's address.
 - `message` - The deserialized message data.
-- `channel` - The channel the message was sent on.
-- `distance` - Distance of the sender.
+- `channel` - The channel the message was received on.
+- `distance` - Distance to the sender of the underlying modem message. This may not match the true originator for relayed messages.
 
 # Technical Details
 
