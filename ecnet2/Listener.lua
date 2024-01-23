@@ -21,7 +21,7 @@ function Listener:initialise(protocol)
     self._psk = blake3.digest(protocol._identity._pk .. protocol._hash)
     self._protocol = protocol
     self._processed = setmetatable({}, { __mode = "v" })
-    self._handler = function(m, s) return self:_handle(m, s) end
+    self._handler = function(m, s, c, d) return self:_handle(m, s, c, d) end
     local descriptor = blake3.digest(self._psk)
     ecnetd.addHandler(descriptor, self._handler)
 end
@@ -29,9 +29,11 @@ end
 --- Handles an incoming packet.
 --- @param packet string
 --- @param side string
-function Listener:_handle(packet, side)
+--- @param ch integer
+--- @param dist number
+function Listener:_handle(packet, side, ch, dist)
     local request = { _lid = self.id, _nid = side, _packet = packet }
-    os.queueEvent("ecnet2_request", self.id, request, side)
+    os.queueEvent("ecnet2_request", self.id, request, side, ch, dist)
 end
 
 --- Accepts a request and builds a connection. Waits for the next request if

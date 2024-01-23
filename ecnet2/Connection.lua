@@ -20,7 +20,7 @@ function Connection:initialise(state, protocol, side)
     self.id = uid()
     self._protocol = protocol
     self._side = side
-    self._handler = function(m, _) return self:_handle(m, _) end
+    self._handler = function(m, _, c, d) return self:_handle(m, _, c, d) end
     self._state = state
     if state.d then ecnetd.addHandler(state.d, self._handler) end
 end
@@ -35,7 +35,9 @@ end
 --- Handles an incoming packet, modifying the state.
 --- @param packet string
 --- @param _ string
-function Connection:_handle(packet, _)
+--- @param ch integer
+--- @param dist number
+function Connection:_handle(packet, _, ch, dist)
     local newState, msg = self._state.resolve(packet)
     self:_setState(newState)
     if not msg then return end
@@ -43,7 +45,7 @@ function Connection:_handle(packet, _)
     local ok, message = pcall(deserialize, msg)
     if ok then
         local addr = addressEncoder.encode(self._state.pk)
-        os.queueEvent("ecnet2_message", self.id, addr, message)
+        os.queueEvent("ecnet2_message", self.id, addr, message, ch, dist)
     end
 end
 
