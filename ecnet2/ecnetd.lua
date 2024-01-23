@@ -7,7 +7,7 @@ local constants = require "ecnet2.constants"
 local state
 
 --- @param message string
-local function enqueue(message, side)
+local function enqueue(message, side, ch, dist)
     if type(message) ~= "string" then return end
     if #message >= 2 ^ 16 then return end
     if #message < 32 then return end
@@ -20,8 +20,8 @@ end
 local function ecnetd()
     while not state do coroutine.yield() end
     while true do
-        local _, side, ch, _, msg = coroutine.yield("modem_message")
-        if ch == constants.CHANNEL then enqueue(msg, side) end
+        local _, side, ch, _, msg, dist = coroutine.yield("modem_message")
+        if ch == constants.CHANNEL then enqueue(msg, side, ch, dist) end
     end
 end
 

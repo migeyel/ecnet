@@ -30,12 +30,13 @@ local listener = ping:listen()
 local connections = {}
 
 while true do
-    local event, id, p2, p3 = os.pullEvent()
+    local event, id, p2, p3, ch, dist = os.pullEvent()
     if event == "ecnet2_request" and id == listener.id then
         -- Accept the request and send a greeting message.
         local connection = listener:accept("ping v1.0", p2)
         connections[connection.id] = connection
     elseif event == "ecnet2_message" and connections[id] then
+        print("got", p3, "on channel", ch, "from", dist, "blocks away")
         -- Reply with the same message.
         connections[id]:send(p3)
     end
