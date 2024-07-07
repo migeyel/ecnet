@@ -12,8 +12,11 @@ http.websocket(data.url).close()
 -- Open the top modem for comms.
 ecnet2.open("top")
 
+-- Define an identity.
+local id = ecnet2.Identity("/.ecnet2")
+
 -- Define a protocol.
-local ping = ecnet2.Protocol {
+local ping = id:Protocol {
     -- Programs will only see packets sent on the same protocol.
     -- Only one active listener can exist at any time for a given protocol name.
     name = "ping",

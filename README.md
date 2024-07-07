@@ -29,15 +29,27 @@ Closes a modem for communications.
 ### `ecnet2.isOpen([modem: string])`
 Returns whether a modem is open for communications.
 
+### `ecnet2.Identity(path: string)`
+Creates or loads in an identity from a given identity directory path.
+
 ### `ecnet2.address(): string`
-Returns the address for connecting to this device.
+DEPRECATED. Use `ecnet2.Identity("/.ecnet2").address` instead.
+
+### `ecnet2.Protocol(interface: IProtocol): Protocol`
+DEPRECATED. Use `ecnet2.Identity("/.ecnet2"):Protocol(...)` instead.
 
 ### `ecnet2.daemon`
 Function used for managing listener and connection events.
 Intended to be put in parallel with users code.
 
-### `ecnet2.Protocol(interface: IProtocol): Protocol`
-Creates a protocol from a given interface.
+## Type `Identity`
+Contains secret data needed to communicate under an address.
+
+### `Identity.address: string`
+The address for connecting to this device through this identity.
+
+### `Identity:Protocol(interface: IProtocol): Protocol`
+Creates a protocol from a given interface under this identity.
 
 ## Type `IProtocol`
 A table containing a description for a protocol.
