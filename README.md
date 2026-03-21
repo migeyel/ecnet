@@ -33,6 +33,23 @@ Returns whether a modem is open for communications.
 Creates or loads in an identity from a given identity directory path.
 If no path is given, creates a temporary identity.
 
+### `ecnet2.ANONYMOUS: Identity`
+The anonymous identity, an identity anyone can use.
+
+Using the anonymous identity provides better handshake performance at the cost
+of not authenticating the sender. Messages sent always use the fixed address
+`AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`. Both connecting and listening
+is supported.
+
+Several clients can connect to the same server using the anonymous identity. The
+result will be several different open tunnels, one for each client, with the 
+same anonymous address.
+
+If several computers are listening using the same identity, clients will send
+connection requests to all of them but only one will end up with the final
+tunnel. Other hosts end up with a complete tunnel but no messages are sent or
+received.
+
 ### `ecnet2.address(): string`
 DEPRECATED. Use `ecnet2.Identity("/.ecnet2").address` instead.
 

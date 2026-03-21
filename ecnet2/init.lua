@@ -21,6 +21,14 @@ function module.Identity(path)
     return Identity(expect(1, path, "string", "nil"))
 end
 
+--- The anonymous identity.
+--- @type ecnet2.Identity
+module.ANONYMOUS = setmetatable({
+    _msk = "h\x9f\xae\xe7\xd2\x18\x93\xc0\xb2\xe6\xbc\x17\xf5\xce\xf7\xa6\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0@" .. ("\0"):rep(32),
+    _pk = ("\0"):rep(32),
+    address = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+}, Identity)
+
 --- Returns the address for this device.
 --- @deprecated Use `ecnet2.Identity("/.ecnet2").address` instead.
 --- @return string address The address.

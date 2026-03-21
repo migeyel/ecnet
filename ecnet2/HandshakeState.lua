@@ -2,6 +2,9 @@ local x25519c = require "ccryptolib.x25519c"
 local x25519 = require "ccryptolib.x25519"
 local SymmetricState = require "ecnet2.SymmetricState"
 
+--- 32 null bytes. Used for null public keys and shared secrets.
+local NULL_KEY = ("\0"):rep(32)
+
 --- A handshake state.
 --- @class ecnet2.HandshakeState
 --- The other party's public key, if known.
@@ -103,7 +106,11 @@ local function rC(msk, symmetricState)
         local pk = symmetricState:decryptAndHash(data:sub(1, 48))
         if not pk then return close() end
 
-        symmetricState:mixKey(x25519.exchange(x25519c.ephemeralSk(msk), pk))
+        if pk == NULL_KEY then
+            symmetricState:mixKey(NULL_KEY)
+        else
+            symmetricState:mixKey(x25519.exchange(x25519c.ephemeralSk(msk), pk))
+        end
 
         local xm = unpad(symmetricState:decryptAndHash(data:sub(49)))
         if not xm then return close() end
@@ -162,6 +169,9 @@ local function iB(msk, iPk, rPk, symmetricState)
         if not e then return close() end
 
         local se, ee = x25519c.exchange(msk, e)
+        if ee == NULL_KEY then
+            ee = x25519.exchange(x25519c.ephemeralSk(msk), e)
+        end
         symmetricState:mixKey(ee)
 
         local xm = unpad(symmetricState:decryptAndHash(data:sub(49)))
@@ -223,6 +233,9 @@ local function rA(msk, rPk, prologue, introPsk, data)
     if not e then return close() end
 
     local es, ee = x25519c.exchange(msk, e)
+    if ee == NULL_KEY then
+        ee = x25519.exchange(x25519c.ephemeralSk(msk), e)
+    end
     symmetricState:mixKey(es)
 
     local m = unpad(symmetricState:decryptAndHash(data:sub(49)))
@@ -258,7 +271,11 @@ local function iA(msk, iPk, rPk, prologue, introPsk)
     local esk = x25519c.ephemeralSk(msk)
     local eCtx = symmetricState:encryptAndHash(x25519.publicKey(esk))
 
-    symmetricState:mixKey(x25519.exchange(esk, rPk))
+    if rPk == NULL_KEY then
+        symmetricState:mixKey(NULL_KEY)
+    else
+        symmetricState:mixKey(x25519.exchange(esk, rPk))
+    end
     local ctx = symmetricState:encryptAndHash(pad("", 32 + 48 + 16, 192))
 
     return iB(msk, iPk, rPk, symmetricState), eCtx .. ctx
