@@ -35,40 +35,49 @@ end
 --- @field address string The address for connecting to this device
 local Identity = class "ecnet2.Identity"
 
---- @param path string
+--- @param path string?
 function Identity:initialise(path)
-    local idPath = fs.combine(path, ID_PATH)
-    local idDelPath = fs.combine(path, ID_DEL_PATH)
-    local idBackupPath = fs.combine(path, ID_BACKUP_PATH)
-    local addressPath = fs.combine(path, ADDRESS_PATH)
-
-    --#region critical section on the directory
-    fs.makeDir(path)
-    if fs.exists(idDelPath) then
-        fs.delete(path)
-        fs.makeDir(path)
-    end
-
-    local noise
-    if fs.exists(idPath) then
-        local f = assert(fs.open(idPath, "rb"))
-        noise = f.readAll()
-        f.close()
+    local sk = nil
+    if not path then
+        sk = random.random(32)
     else
-        noise = mkNoise()
-        local f = assert(fs.open(idDelPath, "wb"))
-        f.write(noise)
-        f.close()
-        fs.copy(idDelPath, idBackupPath)
-        fs.move(idDelPath, idPath)
+        local idPath = fs.combine(path, ID_PATH)
+        local idDelPath = fs.combine(path, ID_DEL_PATH)
+        local idBackupPath = fs.combine(path, ID_BACKUP_PATH)
+
+        --#region critical section on the directory
+        fs.makeDir(path)
+        if fs.exists(idDelPath) then
+            fs.delete(path)
+            fs.makeDir(path)
+        end
+
+        local noise
+        if fs.exists(idPath) then
+            local f = assert(fs.open(idPath, "rb"))
+            noise = f.readAll()
+            f.close()
+        else
+            noise = mkNoise()
+            local f = assert(fs.open(idDelPath, "wb"))
+            f.write(noise)
+            f.close()
+            fs.copy(idDelPath, idBackupPath)
+            fs.move(idDelPath, idPath)
+        end
+
+        sk = assert(mkKeyFromNoise(noise), "identity file is corrupted")
     end
 
-    local sk = assert(mkKeyFromNoise(noise), "identity file is corrupted")
     local pk = x25519.publicKey(sk)
     local addr = addressEncoder.encode(pk)
-    local f = assert(fs.open(addressPath, "wb"))
-    f.write(addr)
-    f.close()
+
+    if path then
+        local addressPath = fs.combine(path, ADDRESS_PATH)
+        local f = assert(fs.open(addressPath, "wb"))
+        f.write(addr)
+        f.close()
+    end
     --#endregion
 
     self._msk = x25519c.mask(sk)

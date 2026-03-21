@@ -15,10 +15,10 @@ local function fetchIdentity()
 end
 
 --- Loads or creates an identity file in the given path.
---- @param path string The path to load or create the identity at.
+--- @param path string? The path to load or create the identity at.
 --- @return ecnet2.Identity
 function module.Identity(path)
-    return Identity(expect(1, path, "string"))
+    return Identity(expect(1, path, "string", "nil"))
 end
 
 --- Returns the address for this device.

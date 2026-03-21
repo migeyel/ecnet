@@ -29,8 +29,9 @@ Closes a modem for communications.
 ### `ecnet2.isOpen([modem: string])`
 Returns whether a modem is open for communications.
 
-### `ecnet2.Identity(path: string)`
+### `ecnet2.Identity([path: string])`
 Creates or loads in an identity from a given identity directory path.
+If no path is given, creates a temporary identity.
 
 ### `ecnet2.address(): string`
 DEPRECATED. Use `ecnet2.Identity("/.ecnet2").address` instead.
