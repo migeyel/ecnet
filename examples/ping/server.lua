@@ -1,12 +1,7 @@
 local ecnet2 = require "ecnet2"
 local random = require "ccryptolib.random"
 
--- Initialize the random generator.
-local postHandle = assert(http.post("https://krist.dev/ws/start", "{}"))
-local data = textutils.unserializeJSON(postHandle.readAll())
-postHandle.close()
-random.init(data.url)
-http.websocket(data.url).close()
+random.initWithTiming()
 
 -- Open the top modem for comms.
 ecnet2.open("top")
