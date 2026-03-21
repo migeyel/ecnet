@@ -17,6 +17,7 @@ local Protocol = class "ecnet2.Protocol"
 --- The interface for describing a new protocol.
 --- @class ecnet2.IProtocol
 --- @field name string The protocol's name.
+--- @field key string? A pre-shared key for protocol connections.
 --- @field serialize fun(obj: any): string The serializer for messages.
 --- @field deserialize fun(str: string): any The deserializer for messages.
 
@@ -24,11 +25,17 @@ local Protocol = class "ecnet2.Protocol"
 --- @param identity ecnet2.Identity The protocol's identity.
 function Protocol:initialise(interface, identity)
     expect.field(interface, "name", "string")
+    expect.field(interface, "key", "string", "nil")
     expect.field(interface, "serialize", "function")
     expect.field(interface, "deserialize", "function")
+    if interface.key then
+        assert(#interface.key == 32, "invalid key size, must be 32 bytes")
+        self._hash = blake3.digestKeyed(interface.key, interface.name)
+    else
+        self._hash = blake3.digest(interface.name)
+    end
     self._interface = interface
     self._identity = identity
-    self._hash = blake3.digest(interface.name)
 end
 
 --- Creates a new connection using this protocol and a modem side.

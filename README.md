@@ -58,6 +58,13 @@ A table containing a description for a protocol.
 ### `IProtocol.name: string`
 The protocol's name.
 
+### `Iprotocol.key: string`
+An optional 32-byte random protocol key.
+
+If specified, this restricts the protocol to only reach peers who have specified
+the same key in their protocol. Peers who don't know this key cannot be reached
+through this protocol, hence it can act as a form of symmetric authentication.
+
 ### `Iprotocol.serialize(object: any): string`
 A serializer for protocol objects.
 
@@ -132,6 +139,10 @@ failure denial-of-service attacks on networks with no wormholes.
 
 The listener descriptor is defined as `BLAKE3(BLAKE3(pk .. BLAKE3(protocol)))`,
 where `pk` is the listener's public key and `protocol` is the protocol name.
+The descriptor's preimage is used as pre-shard key for the noise handshake.
+
+If a protocol key is specified, the value becomes `BLAKE3(BLAKE3(pk ..
+BLAKE3_KEYED(protocol, key)))` instead.
 
 The connection descriptors are derived from the current decryption key, which is
 ratcheted every time a new message is received.
