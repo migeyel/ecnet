@@ -1,6 +1,6 @@
 local class = require "ecnet2.class"
 local blake3 = require "ccryptolib.blake3"
-local CipherState = require "ecnet2.CipherState"
+local CipherState = require "ecnet2.cipher_state"
 
 --- A symmetric state containing keys and a handshake transcript hash.
 --- @class ecnet2.SymmetricState

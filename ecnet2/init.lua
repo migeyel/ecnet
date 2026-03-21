@@ -1,5 +1,5 @@
 local constants = require "ecnet2.constants"
-local Identity = require "ecnet2.Identity"
+local Identity = require "ecnet2.identity"
 local modems = require "ecnet2.modems"
 local ecnetd = require "ecnet2.ecnetd"
 local expect = require "cc.expect"

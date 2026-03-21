@@ -1,6 +1,6 @@
 local class = require "ecnet2.class"
 local ecnetd = require "ecnet2.ecnetd"
-local addressEncoder = require "ecnet2.addressEncoder"
+local addressEncoder = require "ecnet2.address_encoder"
 local modems = require "ecnet2.modems"
 local uid = require "ecnet2.uid"
 

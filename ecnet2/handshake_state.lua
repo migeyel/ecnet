@@ -1,6 +1,6 @@
 local x25519c = require "ccryptolib.x25519c"
 local x25519 = require "ccryptolib.x25519"
-local SymmetricState = require "ecnet2.SymmetricState"
+local SymmetricState = require "ecnet2.symmetric_state"
 
 --- 32 null bytes. Used for null public keys and shared secrets.
 local NULL_KEY = ("\0"):rep(32)
