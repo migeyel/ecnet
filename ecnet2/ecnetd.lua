@@ -12,7 +12,7 @@ local function enqueue(message, side, ch, dist)
     local descriptor = message:sub(1, 32)
     local etc = message:sub(33)
     local handler = handlers[descriptor]
-    if handler then return handler(etc, side) end
+    if handler then return handler(etc, side, ch, dist) end
 end
 
 local function daemon()

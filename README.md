@@ -130,7 +130,7 @@ Yields until a message is received. Returns the sender and contents, or nil on
 timeout.
 
 ## Events
-### `"ecnet2_request", listenerId: string, request: Request, side: string`
+### `"ecnet2_request", listenerId: string, request: Request, side: string, channel: number, distance: number`
 A connection request.
 - `listenerId` - The `id` field of the listener that received this request.
 - `request` - The request to pass on to the `accept` method.
@@ -138,7 +138,7 @@ A connection request.
 - `channel` - The channel the request was received on.
 - `distance` - Distance to the sender of the underlying modem message. This may not match the true originator for relayed messages.
 
-### `"ecnet2_message", connectionId: string, sender: string, message: any`
+### `"ecnet2_message", connectionId: string, sender: string, message: any, channel: number, distance: number`
 A message in a connection.
 - `connectionId` - The `id` field of the connection that received this message.
 - `sender` - The sender's address.
